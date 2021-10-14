@@ -1,0 +1,9 @@
+[package]
+name = "haru"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+tokio = { version = "1.12.0", features = ["macros", "rt-multi-thread"] }
+songbird = {version = "0.2.0", features = ["builtin-queue"] }
+serenity = "0.10.9"
