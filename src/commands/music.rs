@@ -53,21 +53,24 @@ impl VoiceEventHandler for TrackEnded {
 }
 
 #[group]
-#[commands(play, skip)]
+#[commands(play, skip, cola)]
 pub struct Music;
 
 #[command]
 async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    // Join channel always
-    join_channel(ctx, msg).await?;
-
     // If there are no args, send a messsage and return
     if args.is_empty() {
         msg.channel_id
-            .say(&ctx.http, "mmmm necesito una palabra o un link de youtube")
+            .say(
+                &ctx.http,
+                "necesito una palabra o un link de youtube  (•◡•) /",
+            )
             .await?;
         return Ok(());
     }
+
+    // Join channel always
+    join_channel(ctx, msg).await?;
 
     // This should never fails
     let guild = msg.guild(&ctx.cache).await.expect("Can't get guild");
@@ -97,7 +100,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             Ok(source) => source,
             Err(why) => {
                 msg.channel_id
-                    .say(&ctx.http, format!("[Internal Error] {}", why))
+                    .say(&ctx.http, format!("≧◉◡◉≦ tuve un error interno: {}", why))
                     .await?;
 
                 return Ok(());
@@ -170,7 +173,11 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
 
     // None if the bot is not connected
     if let Some(handler_lock) = manager.get(guild_id) {
-        let handler = handler_lock.lock().await;
+        let mut handler = handler_lock.lock().await;
+        if handler.queue().is_empty() {
+            handler.leave().await?;
+            return Ok(());
+        }
 
         if let Err(e) = handler.queue().skip() {
             // Send Error
@@ -179,6 +186,25 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
     } else {
         // Currently the bot is not in a channel voice in this guild
         msg.reply(&ctx.http, "No estoy en ningun canal de voz :p")
+            .await?;
+    }
+
+    Ok(())
+}
+
+/// This command sends the guild track queue
+#[command]
+async fn cola(ctx: &Context, msg: &Message) -> CommandResult {
+    let manager = songbird::get(ctx)
+        .await
+        .expect("Songbird was not initialized");
+
+    if let Some(handler_lock) = manager.get(msg.guild_id.unwrap()) {
+        let handler = handler_lock.lock().await;
+
+        let queue = handler.queue();
+        msg.channel_id
+            .send_message(&ctx.http, |m| m.content(utils::track_queue_content(queue)))
             .await?;
     }
 
