@@ -8,9 +8,7 @@ use serenity::{
     http::Http,
     model::prelude::*,
 };
-use songbird::{
-    input::Metadata, Event, EventContext, EventHandler as VoiceEventHandler, Songbird, TrackEvent,
-};
+use songbird::{input::Metadata, Event, EventContext, EventHandler as VoiceEventHandler, Songbird, TrackEvent};
 use std::sync::Arc;
 
 /// Struct that implements VoiceEventHandler
@@ -61,10 +59,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     // If there are no args, send a messsage and return
     if args.is_empty() {
         msg.channel_id
-            .say(
-                &ctx.http,
-                "necesito una palabra o un link de youtube  (•◡•) /",
-            )
+            .say(&ctx.http, "necesito una palabra o un link de youtube  (•◡•) /")
             .await?;
         return Ok(());
     }
@@ -76,9 +71,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let guild = msg.guild(&ctx.cache).await.expect("Can't get guild");
 
     // Get global songbird instance
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird is not initialized");
+    let manager = songbird::get(ctx).await.expect("Songbird is not initialized");
 
     // None if the bot is not connected (this should always works, because we connect to server in
     // line above)
@@ -146,9 +139,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
             // Send now playing embed
             msg.channel_id
                 .send_message(&ctx.http, |m| {
-                    m.embed(|e| {
-                        utils::now_playing_embed(e, *metadata, msg.author.mention().to_string())
-                    });
+                    m.embed(|e| utils::now_playing_embed(e, *metadata, &msg.author.mention().to_string()));
                     m
                 })
                 .await?;
@@ -167,9 +158,7 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
     };
 
     // Get songbird bot instance
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird is not initialized");
+    let manager = songbird::get(ctx).await.expect("Songbird is not initialized");
 
     // None if the bot is not connected
     if let Some(handler_lock) = manager.get(guild_id) {
@@ -185,8 +174,7 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
         }
     } else {
         // Currently the bot is not in a channel voice in this guild
-        msg.reply(&ctx.http, "No estoy en ningun canal de voz :p")
-            .await?;
+        msg.reply(&ctx.http, "No estoy en ningun canal de voz :p").await?;
     }
 
     Ok(())
@@ -195,9 +183,7 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
 /// This command sends the guild track queue
 #[command]
 async fn cola(ctx: &Context, msg: &Message) -> CommandResult {
-    let manager = songbird::get(ctx)
-        .await
-        .expect("Songbird was not initialized");
+    let manager = songbird::get(ctx).await.expect("Songbird was not initialized");
 
     if let Some(handler_lock) = manager.get(msg.guild_id.unwrap()) {
         let handler = handler_lock.lock().await;
@@ -216,16 +202,12 @@ async fn join_channel(ctx: &Context, msg: &Message) -> CommandResult {
     let _user = msg.channel_id;
 
     // Get user current voice channel
-    let voice_channel_id = guild
-        .voice_states
-        .get(&msg.author.id)
-        .and_then(|s| s.channel_id);
+    let voice_channel_id = guild.voice_states.get(&msg.author.id).and_then(|s| s.channel_id);
 
     let voice_channel_id = match voice_channel_id {
         Some(c) => c,
         None => {
-            msg.reply(&ctx.http, "You need to be in a voice channel")
-                .await?;
+            msg.reply(&ctx.http, "You need to be in a voice channel").await?;
             return Ok(());
         }
     };
