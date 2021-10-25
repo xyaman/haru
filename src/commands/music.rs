@@ -1,4 +1,5 @@
-use crate::utils;
+use crate::{Database, model, utils};
+use mongodb::bson::doc;
 use serenity::{
     client::Context,
     framework::standard::{
@@ -51,7 +52,8 @@ impl VoiceEventHandler for TrackEnded {
 }
 
 #[group]
-#[commands(play, skip, cola)]
+#[prefixes("music", "m")]
+#[commands(play, playlist, skip, queue)]
 pub struct Music;
 
 #[command]
@@ -182,7 +184,7 @@ async fn skip(ctx: &Context, msg: &Message) -> CommandResult {
 
 /// This command sends the guild track queue
 #[command]
-async fn cola(ctx: &Context, msg: &Message) -> CommandResult {
+async fn queue(ctx: &Context, msg: &Message) -> CommandResult {
     let manager = songbird::get(ctx).await.expect("Songbird was not initialized");
 
     if let Some(handler_lock) = manager.get(msg.guild_id.unwrap()) {
@@ -196,6 +198,50 @@ async fn cola(ctx: &Context, msg: &Message) -> CommandResult {
 
     Ok(())
 }
+
+#[command]
+#[min_args(1)]
+async fn playlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    join_channel(ctx, msg).await?;
+
+    let name = args.single::<String>().unwrap();
+    
+    // Check if there is already a playlist with that name in this guild
+    let db = {
+        let data_read = ctx.data.read().await;
+
+        // Mongo database is wrapped in Arc
+        // https://docs.rs/mongodb/2.0.1/mongodb/struct.Database.html
+        data_read.get::<Database>().expect("").clone()
+    };
+    
+    let playlist_coll = db.collection::<model::Playlist>("playlists");
+
+    // Check if playlist name exists in our collection
+    let filter = doc! { "name": &name, "guild_id": msg.guild_id.unwrap().to_string()};
+    let playlist = match playlist_coll.find_one(filter, None).await? {
+        Some(pl) => pl,
+        None => {
+            msg.reply(&ctx.http, "No se encontró una playlist con ese nombre en este servidor").await?;
+            return Ok(());
+        }
+    };
+
+    let manager = songbird::get(ctx).await.expect("Songbird was not initialized");
+
+    if let Some(handler_lock) = manager.get(msg.guild_id.unwrap()) {
+        let mut handler = handler_lock.lock().await;
+        // let queue = handler.queue();
+        
+        for track in playlist.tracks {
+            let source = songbird::input::ytdl_search(track.query).await?;
+            handler.enqueue_source(source);
+        }
+    }
+
+    Ok(())
+}
+
 
 async fn join_channel(ctx: &Context, msg: &Message) -> CommandResult {
     let guild = msg.guild(&ctx.cache).await.expect("Cant get build");

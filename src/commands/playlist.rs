@@ -1,4 +1,6 @@
-use crate::{model, Database};
+use std::time::Duration;
+
+use crate::{Database, model, utils};
 use mongodb::bson::doc;
 use serenity::{
     client::Context,
@@ -89,14 +91,40 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
 
     // Handle urls different than query
     if is_url {
-        source = songbird::ytdl(track_name).await;
+        source = songbird::ytdl(track_name).await?;
     } else {
-        source = songbird::input::ytdl_search(track_name).await;
+        source = songbird::input::ytdl_search(track_name).await?;
     }
 
-    let emoji = "☑️".chars().next().unwrap();
-    let emoji1 = "❌".chars().next().unwrap();
-    msg.react(&ctx.http, emoji).await?;
+    let res_reaction = msg.channel_id
+    .send_message(&ctx.http, |m| {
+        m.embed(|e| utils::playlist_add_track_embed(e, *source.metadata));
+        m
+    })
+    .await?;
 
+    // Add reactions
+    let yes = '✅';
+    let no = '❌';
+    res_reaction.react(&ctx.http, yes).await?;
+    res_reaction.react(&ctx.http, no).await?;
+    
+    if let Some(reaction) = res_reaction.await_reaction(&ctx).timeout(Duration::from_secs(60)).author_id(msg.author.id).await {
+        
+        let emoji = &reaction.as_inner_ref().emoji;
+        
+        match emoji.as_data().as_str() {
+        // add new track
+        "✅" => {
+            let filter = doc! { "_id": pl.id };
+            let update = doc! {"$push": {"tracks": {"query": track_name}}};
+            playlist_coll.update_one(filter, update, None).await?;
+        }
+        // dont add track
+        "❌" => {}
+        _ => {}
+        }
+
+    }
     Ok(())
 }

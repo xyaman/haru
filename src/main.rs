@@ -15,6 +15,8 @@ mod utils;
 use commands::*;
 use songbird::SerenityInit;
 
+const TOKEN: &str = "";
+
 struct Database;
 
 impl TypeMapKey for Database {
