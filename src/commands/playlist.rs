@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::{Database, model, utils};
+use futures::TryStreamExt;
 use mongodb::bson::doc;
 use serenity::{
     client::Context,
@@ -13,7 +14,7 @@ use serenity::{
 
 #[group]
 #[prefixes(playlist, pl)]
-#[commands(new, add)]
+#[commands(all, new, add)]
 struct Playlist;
 
 #[command]
@@ -45,8 +46,35 @@ async fn new(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     playlist_coll.insert_one(&playlist, None).await?;
 
     // Feedback to use
-    let response = format!("Se creó una playlist con el nombre {}, para mas informacion usa `$help playlist`", playlist.name);
+    let response = format!("Se creó una playlist con el nombre `{}`, para mas informacion usa `$help playlist`", playlist.name);
     msg.reply(&ctx.http, response).await?;
+
+    Ok(())
+}
+
+#[command]
+#[description = "Revisa todas las playlists de este servidor"]
+pub async fn all(ctx: &Context, msg: &Message) -> CommandResult {
+
+    // Check if there is already a playlist with that name in this guild
+    let db = {
+        let data_read = ctx.data.read().await;
+
+        // Mongo database is wrapped in Arc
+        // https://docs.rs/mongodb/2.0.1/mongodb/struct.Database.html
+        data_read.get::<Database>().unwrap().clone()
+    };
+
+    let playlist_coll = db.collection::<model::Playlist>("playlists");
+
+    // Get all playlists in this guild
+    let filter = doc! {"guild_id": msg.guild_id.unwrap().to_string()};
+    let playlists: Vec<_> = playlist_coll.find(filter, None).await?.try_collect().await?;
+
+    // Make a nice message
+    msg.channel_id
+        .send_message(&ctx.http, |m| m.content(utils::guild_playlists_message(&playlists)))
+        .await?;
 
     Ok(())
 }
@@ -112,11 +140,12 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
         match emoji.as_data().as_str() {
         // add new track
         "✅" => {
+            let title = source.metadata.title.unwrap();
             let filter = doc! { "_id": pl.id };
-            let update = doc! {"$push": {"tracks": {"query": track_name}}};
+            let update = doc! {"$push": {"tracks": {"url": source.metadata.source_url.unwrap(), "title": &title}}};
             playlist_coll.update_one(filter, update, None).await?;
             
-            msg.reply(&ctx.http, format!("Se agregó la cancion `{}` a la playlist `{}`", source.metadata.title.unwrap(), pl.name)).await?;
+            msg.reply(&ctx.http, format!("Se agregó la cancion `{}` a la playlist `{}`", title, pl.name)).await?;
         }
         // dont add track
         "❌" => {

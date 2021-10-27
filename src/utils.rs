@@ -1,6 +1,8 @@
 use serenity::builder::CreateEmbed;
 use songbird::{input::Metadata, tracks::TrackQueue};
 
+use crate::model::Playlist;
+
 /// Returns a CreateEmbed with song info. It should be used with the current playing track/song
 pub fn now_playing_embed<'a>(embed: &'a mut CreateEmbed, metadata: Metadata, mention: &str) -> &'a mut CreateEmbed {
     embed.title(metadata.title.unwrap_or("No Name".into()));
@@ -30,6 +32,21 @@ pub fn track_queue_content<'a>(queue: &TrackQueue) -> String {
         let metadata = track.metadata();
         let track_info = format!("{} | {}\n", index, metadata.title.as_ref().unwrap());
         content.push_str(&track_info);
+    }
+
+    content.push_str("```");
+    content
+}
+
+/// Returns a String with info of the track queue
+pub fn guild_playlists_message(playlists: &[Playlist]) -> String {
+    let mut content = String::new();
+    content.push_str("```go\n"); // go just for a little color syntax
+    content.push_str("# | Nombre\n");
+
+    for (index, pl) in playlists.iter().enumerate() {
+        let pl_info = format!("{} | {}\n", index, pl.name);
+        content.push_str(&pl_info);
     }
 
     content.push_str("```");

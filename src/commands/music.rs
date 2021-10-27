@@ -219,7 +219,7 @@ async fn playlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         // let queue = handler.queue();
         
         for track in playlist.tracks {
-            let source = songbird::input::ytdl_search(track.query).await?;
+            let source = songbird::ytdl(track.url).await?;
             handler.enqueue_source(source);
 
             let http = ctx.http.clone();

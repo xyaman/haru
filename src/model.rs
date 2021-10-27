@@ -24,11 +24,6 @@ impl Playlist {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct Track {
-    pub query: String,
-}
-
-impl Track {
-    pub fn new(query: String) -> Self {
-        Self { query }
-    }
+    pub title: String,
+    pub url: String,
 }
