@@ -11,22 +11,16 @@ use serenity::{
     model::prelude::*,
 };
 
-#[group("collector")]
+#[group]
 #[prefixes(playlist, pl)]
 #[commands(new, add)]
 struct Playlist;
 
 #[command]
+#[min_args(1)]
 #[max_args(1)]
 async fn new(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let name = match args.single::<String>() {
-        Ok(n) => n,
-        Err(_) => {
-            msg.reply(&ctx.http, "Necesito un nombre para crear una playlist")
-                .await?;
-            return Ok(());
-        }
-    };
+    let name = args.single::<String>().unwrap();
 
     // Check if there is already a playlist with that name in this guild
     let db = {
@@ -48,11 +42,11 @@ async fn new(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     // Now we create the playlist with that name
     let playlist = model::Playlist::new(name, msg.guild_id.unwrap().to_string());
-    playlist_coll.insert_one(playlist, None).await?;
+    playlist_coll.insert_one(&playlist, None).await?;
 
-    // Feedback to user
-    msg.reply(&ctx.http, "Playlist `{}` creada, para mas informacion usa $help")
-        .await?;
+    // Feedback to use
+    let response = format!("Se creó una playlist con el nombre {}, para mas informacion usa `$help playlist`", playlist.name);
+    msg.reply(&ctx.http, response).await?;
 
     Ok(())
 }
@@ -95,10 +89,12 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
     } else {
         source = songbird::input::ytdl_search(track_name).await?;
     }
+    
+    let metadata = *source.metadata.clone();
 
     let res_reaction = msg.channel_id
     .send_message(&ctx.http, |m| {
-        m.embed(|e| utils::playlist_add_track_embed(e, *source.metadata));
+        m.embed(|e| utils::playlist_add_track_embed(e, metadata));
         m
     })
     .await?;
@@ -119,12 +115,18 @@ pub async fn add(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult 
             let filter = doc! { "_id": pl.id };
             let update = doc! {"$push": {"tracks": {"query": track_name}}};
             playlist_coll.update_one(filter, update, None).await?;
+            
+            msg.reply(&ctx.http, format!("Se agregó la cancion `{}` a la playlist `{}`", source.metadata.title.unwrap(), pl.name)).await?;
         }
         // dont add track
-        "❌" => {}
+        "❌" => {
+            msg.reply(&ctx.http, "No se hizo ningún cambio").await?;
+        }
         _ => {}
         }
-
     }
+
+    res_reaction.delete(&ctx.http).await?;
+
     Ok(())
 }

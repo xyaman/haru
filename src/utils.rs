@@ -39,8 +39,8 @@ pub fn track_queue_content<'a>(queue: &TrackQueue) -> String {
 /// Returns a CreateEmbed with new track info. It's used when user may want to confirm new track of
 /// a playlist
 pub fn playlist_add_track_embed<'a>(e: &'a mut CreateEmbed, m: Metadata) -> &'a mut CreateEmbed {
-    e.title("¿Deseas agregar esta cancion?");
-    e.description(m.title.unwrap_or_default());
+    e.title(m.title.unwrap_or_default());
+    e.description("¿Deseas agregar esta cancion?");
     e.thumbnail(m.thumbnail.unwrap_or_default());
     e.url(m.source_url.unwrap_or_default());
     e
