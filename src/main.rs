@@ -15,8 +15,6 @@ mod utils;
 use commands::*;
 use songbird::SerenityInit;
 
-const TOKEN: &str = "";
-
 struct Database;
 
 impl TypeMapKey for Database {
@@ -45,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .group(&MUSIC_GROUP)
         .group(&PLAYLIST_GROUP);
 
-    let mut client = Client::builder(TOKEN)
+    let mut client = Client::builder(std::env::var("DISCORD_TOKEN").unwrap())
         .event_handler(Handler)
         .framework(framework)
         .register_songbird()
@@ -53,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     {
         let client_options =
-            ClientOptions::parse("").await?;
+            ClientOptions::parse(std::env::var("MONGO_URI").unwrap()).await?;
 
         let mongo_client = MongoClient::with_options(client_options)?;
         let db = mongo_client.database("shizu");

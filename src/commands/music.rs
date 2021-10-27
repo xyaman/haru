@@ -9,7 +9,7 @@ use serenity::{
     http::Http,
     model::prelude::*,
 };
-use songbird::{input::Metadata, Event, EventContext, EventHandler as VoiceEventHandler, Songbird, TrackEvent};
+use songbird::{Event, EventContext, EventHandler as VoiceEventHandler, Songbird, TrackEvent, tracks::{TrackError, TrackHandle}};
 use std::sync::Arc;
 
 /// Struct that implements VoiceEventHandler
@@ -19,7 +19,6 @@ struct TrackEnded {
     http: Arc<Http>,
     guild_id: GuildId,
     channel_id: ChannelId,
-    metadata: Metadata,
     mention: String,
 }
 
@@ -107,26 +106,12 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         // Start song if queue len is 0, otherwise will be just queued.
         handler.enqueue_source(source);
 
-        let channel_id = msg.channel_id.clone();
         let http = ctx.http.clone();
 
-        // Add event handler
-        let _ = handler
-            .queue()
-            .current_queue()
-            .last()
-            .expect("No queue, but it should be at least  1")
-            .add_event(
-                Event::Track(TrackEvent::End),
-                TrackEnded {
-                    manager,
-                    guild_id: guild.id,
-                    http,
-                    metadata: *metadata.clone(),
-                    channel_id,
-                    mention: msg.author.mention().to_string(),
-                },
-            );
+        // Add end event handle
+        let queue = handler.queue().current_queue();
+        let track = queue.last().expect("No queue, but it should be at least  1");
+        add_end_event(manager, track, msg, http)?;
 
         // If there is already playing a song, print that song is queued
         if handler.queue().len() > 1 {
@@ -236,12 +221,23 @@ async fn playlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
         for track in playlist.tracks {
             let source = songbird::input::ytdl_search(track.query).await?;
             handler.enqueue_source(source);
+
+            let http = ctx.http.clone();
+            let manager = manager.clone();
+
+            // Add end event handle
+            let queue = handler.queue().current_queue();
+            let track = queue.last().expect("No queue, but it should be at least  1");
+            add_end_event(manager, track, msg, http)?;
         }
     }
 
     Ok(())
 }
 
+// *******************
+// Some helper methods
+// *******************
 
 async fn join_channel(ctx: &Context, msg: &Message) -> CommandResult {
     let guild = msg.guild(&ctx.cache).await.expect("Cant get build");
@@ -267,4 +263,19 @@ async fn join_channel(ctx: &Context, msg: &Message) -> CommandResult {
     let _handler = manager.join(guild.id, voice_channel_id).await;
 
     Ok(())
+}
+
+/// Adds TrackEvent::End for given track
+fn add_end_event(manager: Arc<Songbird>, track: &TrackHandle, msg: &Message, http: Arc<Http>) -> Result<(), TrackError> {
+    
+    track.add_event(
+        Event::Track(TrackEvent::End),
+        TrackEnded {
+            manager,
+            guild_id: msg.guild_id.clone().unwrap(),
+            http,
+            channel_id: msg.channel_id.clone(),
+            mention: msg.author.mention().to_string(),
+        },
+    )
 }
