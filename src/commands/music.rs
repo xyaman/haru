@@ -1,5 +1,6 @@
 use crate::{Database, model, utils};
 use mongodb::bson::doc;
+use rand::seq::SliceRandom;
 use serenity::{
     client::Context,
     framework::standard::{
@@ -204,7 +205,7 @@ async fn playlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
     // Check if playlist name exists in our collection
     let filter = doc! { "name": &name, "guild_id": msg.guild_id.unwrap().to_string()};
-    let playlist = match playlist_coll.find_one(filter, None).await? {
+    let mut playlist = match playlist_coll.find_one(filter, None).await? {
         Some(pl) => pl,
         None => {
             msg.reply(&ctx.http, "No se encontró una playlist con ese nombre en este servidor").await?;
@@ -217,6 +218,7 @@ async fn playlist(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
     if let Some(handler_lock) = manager.get(msg.guild_id.unwrap()) {
         let mut handler = handler_lock.lock().await;
         // let queue = handler.queue();
+        playlist.tracks.shuffle(&mut rand::thread_rng());
         
         for track in playlist.tracks {
             let source = songbird::ytdl(track.url).await?;
